@@ -1,0 +1,118 @@
+---
+title: "511 Project"
+author: "Amy Zhang"
+date: "November 24, 2015"
+output: pdf_document
+---
+1. Weighted polling average
+    - Recency
+    - Sample size
+    - Pollster rating
+2. Adjusted polling average
+    - Trendline adjustment
+    - House effects adjustment
+    - Likely voter adjustment
+3. Regression. Covariates are dropped if they are not significant at confidence threshold 90%. Covariates are:
+    - adjusted polling average
+    - A state’s Partisan Voting Index
+    - The composition of party identification in the state’s electorate 
+    - The sum of individual contributions received by each candidate as of the last F.E.C. reporting period (this variable is omitted if one or both candidates are new to the race and have yet to complete an FEC filing period)
+    - Incumbency status
+
+
+```{r}
+############################
+#Read in data
+############################
+library(stringr)
+
+polls2004 = read.csv("2004_poll_data.csv", header=TRUE, sep="\t")
+dates = str_split_fixed(as.character(polls2004$Date), " - ", 2)
+polls2004$Date = as.Date(paste("2004", dates[,2], sep="/"), format='%Y/%m/%d') 
+head(polls2004)
+
+pres.polls2004 = read.csv("2004-pres-polls.csv")
+pres.polls2004$Date = gsub(pattern = '2015', replacement = '2004', as.Date(pres.polls2004$Date))
+head(pres.polls2004)
+
+pres.polls2008 = read.csv("2008-pres-polls.csv")
+pres.polls2008$Date = pres.polls2008$End
+head(pres.polls2008)
+
+state.polls2012 = read.csv("2012_poll_data_states.csv", header=TRUE, sep='\t')
+dates = str_split_fixed(as.character(state.polls2012$Date), " - ", 2)
+state.polls2012$Date = as.Date(paste("2012", dates[,2], sep="/")) ##We want only the end date for recency
+head(state.polls2012)
+
+polls2012 = read.csv("2012_poll_data.csv", header=TRUE, sep="\t")
+dates = str_split_fixed(as.character(polls2012$Date), " - ", 2)
+polls2012$Date = as.Date(paste("2012", dates[,2], sep="/")) 
+head(polls2012)
+
+
+
+############################
+#Weight polls
+############################
+##Create date variables as benchmarks for a poll's recency
+##for each year
+
+vote2004 = as.Date("2004/11/1")
+vote2008 = as.Date("2008/11/1")
+
+
+recency.rate = log(2)/14
+#rate at which to decay a poll's recency weight
+
+#Add "recency" column to each data frame
+#
+#http://fivethirtyeight.com/features/how-the-fivethirtyeight-senate-forecast-model-works/#fn-13
+polls2004$Recency = exp(as.numeric(-recency.rate*difftime(date2004, polls2004$Date, unit='days')))
+pres.polls2004$Recency = exp(as.numeric(-recency.rate*difftime(date2004, pres.polls2004$Date, unit='days')))
+pres.polls2008$Recency = exp(as.numeric(-recency.rate*difftime(date2004, pres.polls2008$Date, unit='days')))
+state.polls2012$Recency = exp(as.numeric(-recency.rate*difftime(date2012, state.polls2012$Date, unit='days')))
+polls2012$Recency = exp(as.numeric(-recency.rate*difftime(date2004, polls2012$Date, unit='days')))
+
+
+head(polls2012)
+head(state.polls2012)
+
+#################
+##2012 predictions
+################
+
+vote2012 = as.Date("2012/11/1") 
+currentdate2012 = as.Date("2012/8/15")
+daystil = difftime(vote2012, currentdate2012, unit='days')
+recency.rate = log(2)/(14 + 0.2 * as.numeric(daystil))
+#http://fivethirtyeight.com/features/how-the-fivethirtyeight-senate-forecast-model-works/#fn-13
+
+
+
+
+
+
+
+census2000 = read.csv("census_data_2000.csv")
+head(census2000)
+
+census.demo = read.csv("census_demographics.csv")
+head(census.demo) #same data, different numbers
+
+elect.votes = read.csv("electoral_votes.csv")
+head(elect.votes) #number of votes for each state
+
+gallup.elect = read.csv("gallup_electorate.csv")
+head(gallup.elect) #percent of democrats, republicans per state
+
+obama_indiv_state = read.csv("obama_indiv_state.csv")
+head(obama_indiv_state) #no idea what this is
+
+part_voting = read.csv("partisan_voting.csv")
+head(part_voting)
+
+wsj.forecast = read.csv("wsj_forecast.csv", header=TRUE, sep="\t")
+head(wsj.forecast) ##formatting is wonky
+
+
+```
