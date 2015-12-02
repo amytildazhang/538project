@@ -1,0 +1,107 @@
+538 model for Senate forecasts (with notes on  how to adjust for Presidential
+
+Ask about:
+- perceived effect of sample size on accuracy
+- LOESS 
+- 
+
+1. Weighted polling average
+	- discard polls know/suspect have faked results or have other gross ethical mixsconduct
+	- discard internal polls conducted directly on behalf of candidates or party organizations
+	- Weighted on recency, sample size, pollster rating
+		- half-life of a poll in days is 14 + 0.2 * daysuntil, daysuntil = number of days until the election
+		- Question: what is "expected effect" on accuracy of increasing sample size?
+		- sample size weighting is asymmetric--penalized more for small sample size
+		- will do pollster rating myself/talk about it if there is time/room
+2. Adjustments to polling average
+	- Likely Voter adjustment
+		- registered voter polls usually overrate democrats
+		- 538 model defaults to shifting polls of RV toward Republicans by 2.7 percentage points (historical average difference)
+	- House Effects adjustment (usually least important)
+		- some polling firms have a tendency to consistently show more favorable results for one or the other party
+		- != bias --refers to how a poll compares against other polls of the same race, while bias refers to how it compares against actual results
+		- REGRESSION on all Senate and generic congressional ballot polls
+			- dummy variable for each state and each polling firm.Coefficient associated with dummy variable for each polling firm is a reflection of house effect
+			- calculated after likely voter and trend line adjustments are applied--theoretically pollster won't have house effect just because it surveys a different sample population or surveys the race at a different time
+			- also includes a "buffer zone" so that it doesn't ruin the point of aggregating polls together
+				- based on number of polls a pollster has released
+				- it is the 90% confidence interval associated with model's estimate of each firm's house effect
+				- remove any house effect beyond the buffer zone from the poll--e.g. a firm with a buffer of 2pp and a 5pp Republican house effect will have its results adjusted toward Democrats by 3 points
+				- also applies house effects adjustment to account for the fact that some polling firms consistently show more undecided voters
+			- minor thing--house effects from past years used to help calibrate the house effects adjustment
+				- they are treated as one-tenth as important as polls from current year
+			- how to calculate baseline? 
+				- use weighted average, weight is based on number of polls a firm has released and its pollster rating
+				- also excludes firms that do not call cellphones
+
+	- Trend line adjustment
+		- important in presidential, not so much in Senate
+		- make accurate inferences about how polls are changing in one state based on other states
+		- ASK EPHRAIM
+		1. All polls placed into groups based on week of election and the state-pollster unit (interaction term b/w pollster and state)
+			- Weeks are defined as seven days before current date, and so on
+			- treat national polls as a "state"
+			- do not include national polls directly in averages -- they provide robust baseline for measuring changes in candidate support, so they are used to infer trends
+		2. Linear REGRESSION with one dummy variable for each week, oen for each state-pollster interaction. Coefficients of weekly dummy variables give idea of time trend
+		3. Smooth time trend using a LOESS regression-use a fairly conservative smoothing parameter for a smoother curve
+			- 0.85 LOESS?
+		4. Polls from previous weeks are adjusted to match the LOESS estimate from the current week
+			- make old data match the current polling landscape
+			- LOESS regression tells us taht average poll in current week has been 2.5pt stronger for Obama than some other week. That other week, the state0pollster sai
+3. State fundamentals
+	- long discussion on importance of determining uncertainty in a forecast
+	- use the fact that same two candidates are on ballot in each state to make comparisons from one state to the next
+	- prevents abrupt shifts in forecast based on recent strong polling in a certain state
+	- REGRESSION on
+		- national polls (indicates overall partison mood)
+		- approval ratings (for races with incumbent Prez; interaction b/w approval ratings and president)
+		- fundraising totals: proportion raised by each major-party candidate, e.g. Dem has $3M, R has $1M, D has 75%. Only looks at sum of individual public contributions
+		- http://www.fec.gov/disclosurep/pnational.do
+		- highest elected office held
+			3 points for current/former gov/sen
+			2 points for HoR
+			1 point for nontrivial elected offices
+			0 for no substantive position
+		- dummy variable for incumbency. Should have a negative coefficient (incumbents usually raaise more money, so negative coefficient compensates)
+		- margin of victory in past election
+			- adjusted relative to national climate in re-election year, using aggregate popular vote
+		- candidate ideology, state partisanship
+			- DWNominate scores 
+			- CFscores
+			- OntheIssues.org scores
+			http://fivethirtyeight.com/datalab/the-senate-races-with-the-biggest-ideological-stakes/
+			- Normalize the three scores so each has same average and standard deviation
+			- ideology of voters: presidential results relative to national average, winners of recent past congressional races in the state, using average dW-Nominate score over past four Congresses
+4. Now-cast/snapshot
+	- adjusted polling average in Step 2 and state fundamentals estimate in Step 3 are combined into a single number that projects what would happen in an election today
+	- state fundamentals estimate is equivalent to a poll with a weight of 0.35 (a really badly-rated poll) but THIS IS FOR SENATE. For presidential, the weight is larger (0.60, based on http://fivethirtyeight.blogs.nytimes.com/methodology/)
+	- ins tates with abundant polling, state fundamentals tend to be a small percentage of the weight
+5. Election Day forecast
+	- more uncertainty
+	- projection of national popular vote based on economic index
+		- can think of as the "national fundamentals"
+	-http://fivethirtyeight.com/features/measuring-the-effect-of-the-economy-on-elections/
+	- weight placed on national fundamentals decline over course of campaign, until 0 by election day
+	- assumes that incumbent's results revert toward mean of how past incumbents had performed
+6. Estimate margin of error
+	- look at which factors are historically correlated with larger errors
+	- regression on all races, where dependent variable is absolute value of difference b/w model's forecast outcome and actual result
+	- factors:
+		- days until election. positively ocrrelate
+		- number of polls. negatively correlated.
+		- disagreement between polls. negatively correlated.
+		- disagreement b/w polling average and state fundamentals. negatively correlated.
+		- number of undecideds or third-party voters. positively corelated
+		- lopsided race (i.e. one candidate is up by a lot). positively correlated.
+7. Simulate outcomes and estiamte the probability of each candidate winning
+	- 538 uses FLeishman's transformation
+	- why?
+		- error in polls is not independent from state to state
+	- model breaks error into two subcomponents: national error and state-specific error using a sum of square formula
+		- national error: overall bias of 538 forecasts
+		- in each simulation, program draws a series of random numbers. 1st is national error, then rest or numbers for each state
+		- numbers are added together to produce simulated result in each state
+		- estimate candidate's chance of winning and number of seats each party will control
+		- model vote-shares for third-party candidates on log-normal distribution
+		- use ideology scores to account for bote-sharing b/w third party and one of the main parties
+		- count number of seats won in each simulation

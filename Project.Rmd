@@ -4,6 +4,8 @@ author: "Amy Zhang"
 date: "November 24, 2015"
 output: pdf_document
 ---
+http://fivethirtyeight.com/features/how-fivethirtyeight-calculates-pollster-ratings/
+http://fivethirtyeight.com/features/how-the-fivethirtyeight-senate-forecast-model-works/
 1. Weighted polling average
     - Recency
     - Sample size
@@ -19,63 +21,138 @@ output: pdf_document
     - The sum of individual contributions received by each candidate as of the last F.E.C. reporting period (this variable is omitted if one or both candidates are new to the race and have yet to complete an FEC filing period)
     - Incumbency status
 
-
+a 600-voter poll from a firm with an average pollster rating gets a weight of 1.00 (on the day of its release55; this weight will decline as the poll ages).
+- state fundamentals estimate is considered more reliable than senate (>0.35, don't know how much)
 ```{r}
 ############################
 #Read in data
 ############################
 library(stringr)
+#Dataset and description of data can be found at
+#https://github.com/fivethirtyeight/data/tree/master/pollster-ratings
+polls = read.csv("https://raw.githubusercontent.com/fivethirtyeight/data/master/pollster-ratings/raw-polls.tsv", header=TRUE, sep="\t")
+polls = polls[grep(pattern = ".*Pres.*", x=polls$race),] 
+polls$polldate = as.Date(polls$polldate, format='%m/%d/%Y')
+polls$electiondate = as.Date(polls$electiondate, format='%m/%d/%Y')
 
-polls2004 = read.csv("2004_poll_data.csv", header=TRUE, sep="\t")
-dates = str_split_fixed(as.character(polls2004$Date), " - ", 2)
-polls2004$Date = as.Date(paste("2004", dates[,2], sep="/"), format='%Y/%m/%d') 
-head(polls2004)
 
-pres.polls2004 = read.csv("2004-pres-polls.csv")
-pres.polls2004$Date = gsub(pattern = '2015', replacement = '2004', as.Date(pres.polls2004$Date))
-head(pres.polls2004)
+poll.ratings =  read.csv("https://raw.githubusercontent.com/fivethirtyeight/data/master/pollster-ratings/pollster-ratings.tsv", header=TRUE, sep="\t")
+head(poll.ratings)
 
-pres.polls2008 = read.csv("2008-pres-polls.csv")
-pres.polls2008$Date = pres.polls2008$End
-head(pres.polls2008)
-
+nat.polls2012 = read.csv("2012_poll_data.csv", header=TRUE, sep="\t")
 state.polls2012 = read.csv("2012_poll_data_states.csv", header=TRUE, sep='\t')
+
+nat.polls2012$State = "USA"
+polls2012 = rbind(nat.polls2012, state.polls2012)
+
+#format dates
+dates = str_split_fixed(as.character(nat.polls2012$Date), " - ", 2)
+nat.polls2012$StartDate = as.Date(paste("2012", dates[,1], sep="/")) ##TAKE AVERAGE
+nat.polls2012$EndDate = as.Date(paste("2012", dates[,2], sep="/")) ##TAKE AVERAGE
+head(nat.polls2012)
+
+#format "spread"
+nat.polls2012$Spread = as.character(nat.polls2012$Spread)
+spread = str_split_fixed(nat.polls2012$Spread, " ", 2)
+obama = which(spread[,1] == "Obama")
+nat.polls2012$Spread[obama] = as.numeric(spread[obama,2])
+nat.polls2012$Spread[-obama] = -as.numeric(spread[-obama,2])
+nat.polls2012$Spread[which(is.na(nat.polls2012$Spread))] = 0
+nat.polls2012$Spread = as.numeric(nat.polls2012$Spread)
+
+#format sample
+nat.polls2012$Sample = as.character(nat.polls2012$Sample)
+sample = str_split_fixed(nat.polls2012$Sample, " ", 2)
+nat.polls2012$Type = sample[,2]
+nat.polls2012$Sample = as.numeric(sample[,1])
+
+
+
 dates = str_split_fixed(as.character(state.polls2012$Date), " - ", 2)
-state.polls2012$Date = as.Date(paste("2012", dates[,2], sep="/")) ##We want only the end date for recency
+state.polls2012$StartDate = as.Date(paste("2012", dates[,1], sep="/")) ##TAKE AVERAGE
+state.polls2012$EndDate = as.Date(paste("2012", dates[,2], sep="/")) ##TAKE AVERAGEhead(state.polls2012)
+
+#format "spread"
+state.polls2012$Spread = as.character(state.polls2012$Spread)
+spread = str_split_fixed(state.polls2012$Spread, " ", 2)
+obama = which(spread[,1] == "Obama")
+state.polls2012$Spread[obama] = as.numeric(spread[obama,2])
+state.polls2012$Spread[-obama] = -as.numeric(spread[-obama,2])
+state.polls2012$Spread[which(is.na(state.polls2012$Spread))] = 0
+state.polls2012$Spread = as.numeric(state.polls2012$Spread)
+
+#format sample
+state.polls2012$Sample = as.character(state.polls2012$Sample)
+sample = str_split_fixed(state.polls2012$Sample, " ", 2)
+state.polls2012$Type = sample[,2]
+state.polls2012$Sample = as.numeric(sample[,1])
+
+
 head(state.polls2012)
 
-polls2012 = read.csv("2012_poll_data.csv", header=TRUE, sep="\t")
-dates = str_split_fixed(as.character(polls2012$Date), " - ", 2)
-polls2012$Date = as.Date(paste("2012", dates[,2], sep="/")) 
-head(polls2012)
+head(polls)
+summary(polls)
 
+
+today = as.Date("2012/10/14")
+
+#Useful groupings within "polls"
+state.polls = which(polls$location != 'US')
+polls2000 = which(polls$year == 2000)
+polls2004 = which(polls$year == 2004)
+polls2008 = which(polls$year == 2008)
+polls2012 = which(polls$year == 2012 & polls$polldate < today & polls$type_simple == 'Pres-G')
+partisan = which(polls$partisan != '') #these pollsters should be excluded later
+head(state.polls)
 
 
 ############################
-#Weight polls
+#Weighted polling average
 ############################
-##Create date variables as benchmarks for a poll's recency
-##for each year
+#http://fivethirtyeight.com/features/how-fivethirtyeight-calculates-pollster-ratings/#fn-31
+#find pollster-induced error
 
-vote2004 = as.Date("2004/11/1")
-vote2008 = as.Date("2008/11/1")
+polls.beforetoday = which(nat.polls2012$EndDate < today)
+data = nat.polls2012[polls.beforetoday,]
+data$Poll = factor(data$Poll, levels=levels(poll.ratings$Pollster))
+nax = which(is.na(data$Poll))
+data = data[-nax,] #take out polls that haven't been rated by 538
 
+weights = data.frame(Poll = data$Poll, recency = NA, sample = NA, rating = NA, spread=NA, type=NA)
 
-recency.rate = log(2)/14
-#rate at which to decay a poll's recency weight
-
-#Add "recency" column to each data frame
-#
+#Calculating recency
 #http://fivethirtyeight.com/features/how-the-fivethirtyeight-senate-forecast-model-works/#fn-13
-polls2004$Recency = exp(as.numeric(-recency.rate*difftime(date2004, polls2004$Date, unit='days')))
-pres.polls2004$Recency = exp(as.numeric(-recency.rate*difftime(date2004, pres.polls2004$Date, unit='days')))
-pres.polls2008$Recency = exp(as.numeric(-recency.rate*difftime(date2004, pres.polls2008$Date, unit='days')))
-state.polls2012$Recency = exp(as.numeric(-recency.rate*difftime(date2012, state.polls2012$Date, unit='days')))
-polls2012$Recency = exp(as.numeric(-recency.rate*difftime(date2004, polls2012$Date, unit='days')))
+daysfrom = as.numeric(difftime(as.Date("2012/11/01"), today, unit='days'))
+recencyrate = log(2)/(14 + 0.2*daysfrom)
+timedif = as.numeric(difftime(today, data$EndDate))
+
+weights$recency = exp(-recencyrate * timedif)
 
 
-head(polls2012)
-head(state.polls2012)
+#Reason-Rupe/PSRAI = Princeton...
+#RCP Average = real clear politics average
+#
+
+for (i in 1:length(poll.ratings$Polls)){
+  pollster = poll.ratings$Pollster[i]
+  idx = which(weights$Poll == pollster)
+
+    weights$rating[idx] = poll.ratings$Predictive.Plus.Minus[i]
+}
+
+weights$sample = data$Sample
+weights$sample[which(is.na(weights$sample))] = 600 #538 policy
+
+
+#################
+##Likely Voter adjustment
+################
+
+rv = which(data$type == "RV")
+weights$spread = data$Spread
+weights$spread[rv] = weights$spread[rv] - 2.7
+#registered voter polls tend to differ from likely voter polls by 2.7 percentage points
+
 
 #################
 ##2012 predictions
