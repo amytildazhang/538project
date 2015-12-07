@@ -28,6 +28,11 @@ a 600-voter poll from a firm with an average pollster rating gets a weight of 1.
 #Read in data
 ############################
 library(stringr)
+library(ggplot2)
+
+today = as.Date("2012/10/14")
+as.numeric.factor <- function(x) {as.numeric(levels(x))[x]}
+
 #Dataset and description of data can be found at
 #https://github.com/fivethirtyeight/data/tree/master/pollster-ratings
 polls = read.csv("https://raw.githubusercontent.com/fivethirtyeight/data/master/pollster-ratings/raw-polls.tsv", header=TRUE, sep="\t")
@@ -46,62 +51,42 @@ nat.polls2012$State = "USA"
 polls2012 = rbind(nat.polls2012, state.polls2012)
 
 #format dates
-dates = str_split_fixed(as.character(nat.polls2012$Date), " - ", 2)
-nat.polls2012$StartDate = as.Date(paste("2012", dates[,1], sep="/")) ##TAKE AVERAGE
-nat.polls2012$EndDate = as.Date(paste("2012", dates[,2], sep="/")) ##TAKE AVERAGE
-head(nat.polls2012)
+dates = str_split_fixed(as.character(polls2012$Date), " - ", 2)
+polls2012$StartDate = as.Date(paste("2012", dates[,1], sep="/")) 
+polls2012$EndDate = as.Date(paste("2012", dates[,2], sep="/")) 
+polls2012$Date = floor(rowMeans(matrix(c(polls2012$StartDate, polls2012$EndDate), ncol=2)))
+polls2012$Date = as.Date(polls2012$Date, origin="1970-01-01")
 
 #format "spread"
-nat.polls2012$Spread = as.character(nat.polls2012$Spread)
-spread = str_split_fixed(nat.polls2012$Spread, " ", 2)
+polls2012$Spread = as.character(polls2012$Spread)
+spread = str_split_fixed(polls2012$Spread, " ", 2)
 obama = which(spread[,1] == "Obama")
-nat.polls2012$Spread[obama] = as.numeric(spread[obama,2])
-nat.polls2012$Spread[-obama] = -as.numeric(spread[-obama,2])
-nat.polls2012$Spread[which(is.na(nat.polls2012$Spread))] = 0
-nat.polls2012$Spread = as.numeric(nat.polls2012$Spread)
+polls2012$Spread[obama] = as.numeric(spread[obama,2])
+polls2012$Spread[-obama] = -as.numeric(spread[-obama,2])
+polls2012$Spread[which(is.na(polls2012$Spread))] = 0
+polls2012$Spread = as.numeric(polls2012$Spread)
 
 #format sample
-nat.polls2012$Sample = as.character(nat.polls2012$Sample)
-sample = str_split_fixed(nat.polls2012$Sample, " ", 2)
-nat.polls2012$Type = sample[,2]
-nat.polls2012$Sample = as.numeric(sample[,1])
+polls2012$Sample = as.character(polls2012$Sample)
+sample = str_split_fixed(polls2012$Sample, " ", 2)
+polls2012$Type = sample[,2]
+polls2012$Sample = as.numeric(sample[,1])
 
 
 
-dates = str_split_fixed(as.character(state.polls2012$Date), " - ", 2)
-state.polls2012$StartDate = as.Date(paste("2012", dates[,1], sep="/")) ##TAKE AVERAGE
-state.polls2012$EndDate = as.Date(paste("2012", dates[,2], sep="/")) ##TAKE AVERAGEhead(state.polls2012)
-
-#format "spread"
-state.polls2012$Spread = as.character(state.polls2012$Spread)
-spread = str_split_fixed(state.polls2012$Spread, " ", 2)
-obama = which(spread[,1] == "Obama")
-state.polls2012$Spread[obama] = as.numeric(spread[obama,2])
-state.polls2012$Spread[-obama] = -as.numeric(spread[-obama,2])
-state.polls2012$Spread[which(is.na(state.polls2012$Spread))] = 0
-state.polls2012$Spread = as.numeric(state.polls2012$Spread)
-
-#format sample
-state.polls2012$Sample = as.character(state.polls2012$Sample)
-sample = str_split_fixed(state.polls2012$Sample, " ", 2)
-state.polls2012$Type = sample[,2]
-state.polls2012$Sample = as.numeric(sample[,1])
-
-
-head(state.polls2012)
+head(polls2012)
 
 head(polls)
 summary(polls)
 
 
-today = as.Date("2012/10/14")
 
 #Useful groupings within "polls"
 state.polls = which(polls$location != 'US')
 polls2000 = which(polls$year == 2000)
 polls2004 = which(polls$year == 2004)
 polls2008 = which(polls$year == 2008)
-polls2012 = which(polls$year == 2012 & polls$polldate < today & polls$type_simple == 'Pres-G')
+#polls2012 = which(polls$year == 2012 & polls$polldate < today & polls$type_simple == 'Pres-G')
 partisan = which(polls$partisan != '') #these pollsters should be excluded later
 head(state.polls)
 
@@ -112,46 +97,130 @@ head(state.polls)
 #http://fivethirtyeight.com/features/how-fivethirtyeight-calculates-pollster-ratings/#fn-31
 #find pollster-induced error
 
-polls.beforetoday = which(nat.polls2012$EndDate < today)
-data = nat.polls2012[polls.beforetoday,]
-data$Poll = factor(data$Poll, levels=levels(poll.ratings$Pollster))
-nax = which(is.na(data$Poll))
-data = data[-nax,] #take out polls that haven't been rated by 538
+polls.beforetoday = which(polls2012$EndDate < today)
+polldata = polls2012[polls.beforetoday,]
+polldata$Poll = factor(polldata$Poll, levels=levels(poll.ratings$Pollster))
+nax = which(is.na(polldata$Poll))
+polldata = polldata[-nax,] #take out polls that haven't been rated by 538
 
-weights = data.frame(Poll = data$Poll, recency = NA, sample = NA, rating = NA, spread=NA, type=NA)
 
 #Calculating recency
 #http://fivethirtyeight.com/features/how-the-fivethirtyeight-senate-forecast-model-works/#fn-13
 daysfrom = as.numeric(difftime(as.Date("2012/11/01"), today, unit='days'))
 recencyrate = log(2)/(14 + 0.2*daysfrom)
-timedif = as.numeric(difftime(today, data$EndDate))
+timedif = as.numeric(difftime(today, polldata$Date))
 
-weights$recency = exp(-recencyrate * timedif)
+polldata$recency = exp(-recencyrate * timedif)
 
 
 #Reason-Rupe/PSRAI = Princeton...
 #RCP Average = real clear politics average
 #
-
+polldata$rating = NA
 for (i in 1:length(poll.ratings$Polls)){
   pollster = poll.ratings$Pollster[i]
-  idx = which(weights$Poll == pollster)
+  idx = which(polldata$Poll == pollster)
 
-    weights$rating[idx] = poll.ratings$Predictive.Plus.Minus[i]
+    polldata$rating[idx] = poll.ratings$Predictive.Plus.Minus[i]
 }
 
-weights$sample = data$Sample
-weights$sample[which(is.na(weights$sample))] = 600 #538 policy
+polldata$Sample[which(is.na(polldata$Sample))] = 600 #538 policy
 
+
+##########################
+##Likely Voter adjustment
+##########################
+
+rv = which(polldata$Type == "RV")
+polldata$spread[rv] = polldata$spread[rv] - 2.7
+#registered voter polls tend to differ from likely voter polls by 2.7 percentage points
+
+
+
+
+##########################
+##Trend Line Adjustment
+##########################
+#Create "week" variable
+#Week is defined using "today"
+polldata$Week = today - 7*floor(difftime(today, polldata$Date, unit='days')/7)
+
+polldata$week = as.numeric(floor(difftime(today, polldata$Date, unit='days')/7))
+
+polldata$StatePollster = paste(polldata$State,polldata$Poll)
+
+
+fit = lm(Spread ~ State*Poll + factor(Week), data=polldata)
+
+data.states = split(polldata, polldata$StatePollster, drop=TRUE)
+
+statepollsters = data.frame(StatePollsters = as.character(levels(factor(polldata$StatePollster))))
+
+subsets = rep(NA, length(statepollsters))
+
+trends = lapply(statepollsters, function(x){
+  data = polldata[polldata$StatePollster == x,]
+  s = ifelse(length(data$Poll) < 10, lm(Spread ~ week, data=data), loess(Spread ~ week, data=data, span=0.85))
+  s[[1]][2]
+})
+
+statepollsters$trend = cbind(trends)
+
+
+subsets = lapply(statepollsters, function(x){
+  data = polldata[polldata$StatePollster == x,]
+  print(data)
+})
+
+
+
+
+loess.fits = lapply(data.states, function(xdf) { 
+  a = xdf
+  print(xdf)
+  loess(Spread ~ week, data=xdf, span=0.85)
+  summary(loess)
+  })
+
+
+
+s = state.abb
+s[51] = "USA"
+state.ids = data.frame(State = s, ID = seq(from=1, to=51))
+
+
+
+
+s = rep(NA, length(polldata$State))
+s = state.ids[which(state.ids[,1] == polldata$State),2]
+
+polldata$StateID = NA
+for (i in 1:length(polldata$StateID)) {
+  polldata$StateID[i] = state.ids[which(state.ids[,1] == polldata$State[i]),2]
+}
+
+polldata$PollID = NA
+for (i in 1:length(polldata$PollID)) {
+  polldata$PollID[i] = poll.ratings[which(poll.ratings[,2] == polldata$Poll[i]),1]
+}
+
+
+trend.adjustment = loess(Spread ~ factor(StateID)*factor(Poll) + factor(week), data=polldata, span=0.85)
+
+
+plot(polldata$Spread ~ polldata$Week)
+
+
+
+a = ggplot(polldata, aes(x=Week,y=Spread))
+a + stat_smooth(formula = polldata$Spread ~ polldata$State*polldata$Poll + polldata$Week, method="loess")
 
 #################
-##Likely Voter adjustment
-################
+##House effects adjustment
+#################
 
-rv = which(data$type == "RV")
-weights$spread = data$Spread
-weights$spread[rv] = weights$spread[rv] - 2.7
-#registered voter polls tend to differ from likely voter polls by 2.7 percentage points
+housefx.fit = lm(Spread ~ State*Poll, data=polldata)
+
 
 
 #################

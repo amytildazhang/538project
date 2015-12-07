@@ -37,7 +37,6 @@ Ask about:
 	- Trend line adjustment
 		- important in presidential, not so much in Senate
 		- make accurate inferences about how polls are changing in one state based on other states
-		- ASK EPHRAIM
 		1. All polls placed into groups based on week of election and the state-pollster unit (interaction term b/w pollster and state)
 			- Weeks are defined as seven days before current date, and so on
 			- treat national polls as a "state"
@@ -67,6 +66,9 @@ Ask about:
 			- adjusted relative to national climate in re-election year, using aggregate popular vote
 		- candidate ideology, state partisanship
 			- DWNominate scores 
+				- Obama: -0.343
+				  https://voteviewblog.wordpress.com/2015/07/29/an-update-on-the-presidential-square-wave-july-2015/
+				 - Romney: 
 			- CFscores
 			- OntheIssues.org scores
 			http://fivethirtyeight.com/datalab/the-senate-races-with-the-biggest-ideological-stakes/
@@ -81,6 +83,10 @@ Ask about:
 	- projection of national popular vote based on economic index
 		- can think of as the "national fundamentals"
 	-http://fivethirtyeight.com/features/measuring-the-effect-of-the-economy-on-elections/
+	- stock market has weight of 0.10, other 6 have 0.15
+	- calculate one-month, two-month, to one-year change in these variables, average together after normalizing to have same standard deviation
+		- stock market does this, but for all 252 trading days
+		- stock market uses close of s&p on most recent trading day
 	- weight placed on national fundamentals decline over course of campaign, until 0 by election day
 	- assumes that incumbent's results revert toward mean of how past incumbents had performed
 6. Estimate margin of error
