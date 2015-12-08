@@ -150,39 +150,68 @@ polldata$week = as.numeric(floor(difftime(today, polldata$Date, unit='days')/7))
 polldata$StatePollster = paste(polldata$State,polldata$Poll)
 
 
-fit = lm(Spread ~ State*Poll + factor(Week), data=polldata)
-
-data.states = split(polldata, polldata$StatePollster, drop=TRUE)
-
 statepollsters = data.frame(StatePollsters = as.character(levels(factor(polldata$StatePollster))))
 
-subsets = rep(NA, length(statepollsters))
-
-trends = lapply(statepollsters, function(x){
+polldata$TAdjustment = NA
+trend.fits = lapply(statepollsters$StatePollsters, function(x){
   data = polldata[polldata$StatePollster == x,]
-  s = ifelse(length(data$Poll) < 10, lm(Spread ~ week, data=data), loess(Spread ~ week, data=data, span=0.85))
-  s[[1]][2]
+  fit = NA
+  if (length(data$Poll) < 10){ #apparently changing this to ifelse breaks lapply
+    fit = lm(Spread ~ week, data=data)
+  }
+  else {
+    fit = loess(Spread ~ week, data=data, span=0.85, model=TRUE, surface='direct')
+  }
+    predict(fit, newdata=data.frame(week = 0)) - predict(fit, newdata=data)
 })
 
-statepollsters$trend = cbind(trends)
+for (i in 1:length(statepollsters$StatePollsters)) {
+  polldata$TAdjustment[polldata$StatePollster == statepollsters$StatePollsters[i]] = trend.fits[[i]] #apparently doing this inside lapply breaks R
+}
 
-
-subsets = lapply(statepollsters, function(x){
-  data = polldata[polldata$StatePollster == x,]
-  print(data)
-})
-
+polldata$TAdjusted = polldata$TAdjustment + polldata$Spread
 
 
 
-loess.fits = lapply(data.states, function(xdf) { 
-  a = xdf
-  print(xdf)
-  loess(Spread ~ week, data=xdf, span=0.85)
-  summary(loess)
-  })
+fit = lm(TAdjusted ~ Poll + State, data=polldata)
+res = fit$residuals
+
+vif(fit)
+
+crPlots(fit) 
+
+library(car)
+outs = outlierTest(fit)
+outs = which(abs(res) > 4.087220 )
+plot(fit$fitted.values ~ r.star)
+r.star = rstudent(fit)
+qqnorm(r.star)
+qqline(r.star)
+
+out.idx = which(abs(r.star) > 4.074962)
+fit2 = lm(TAdjusted ~ Poll + State, data=polldata[-out.idx,])
+res = fit2$residuals
+r.star = rstudent(fit2)
+vif(fit2)
+
+crPlots(fit2) 
+
+outlierTest(fit2)
+plot(fit2$fitted.values ~ r.star)
 
 
+qqnorm(res)
+qqline(res)
+
+
+X = model.matrix(fit)
+p = rankMatrix(X)
+p = p[1]
+
+beta = fit$coefficients[2]
+se = sqrt(var(res)*solve(t(X) %*% X))
+beta + 0.02617 * qt(0.975, 48)
+beta - 0.02617 * qt(0.975, 48)
 
 s = state.abb
 s[51] = "USA"
