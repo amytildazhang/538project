@@ -4,25 +4,67 @@ author: "Amy Zhang"
 date: "November 24, 2015"
 output: pdf_document
 ---
-http://fivethirtyeight.com/features/how-fivethirtyeight-calculates-pollster-ratings/
-http://fivethirtyeight.com/features/how-the-fivethirtyeight-senate-forecast-model-works/
-1. Weighted polling average
-    - Recency
-    - Sample size
-    - Pollster rating
-2. Adjusted polling average
-    - Trendline adjustment
-    - House effects adjustment
-    - Likely voter adjustment
-3. Regression. Covariates are dropped if they are not significant at confidence threshold 90%. Covariates are:
-    - adjusted polling average
-    - A state’s Partisan Voting Index
-    - The composition of party identification in the state’s electorate 
-    - The sum of individual contributions received by each candidate as of the last F.E.C. reporting period (this variable is omitted if one or both candidates are new to the race and have yet to complete an FEC filing period)
-    - Incumbency status
 
-a 600-voter poll from a firm with an average pollster rating gets a weight of 1.00 (on the day of its release55; this weight will decline as the poll ages).
-- state fundamentals estimate is considered more reliable than senate (>0.35, don't know how much)
+Nate Silver made waves in the 2008 election when he correctly forecasted the outcomes of 49 out of 50 of the states using statistics [intro stuff here]. I attempted to replicate his predictions for the 2012 election, using the methodology described on his blog [1]. 
+
+Nate Silver's method is based on the idea that general election polls are related to the outcome of the election, and can be used to create a prediction of the election's result. If we view the election results as a random variable, we can use the polls to define an expected value for the election's outcome, and the uncertainty associated with the polls as the variance. 
+
+A simple aggregated poll average would not be enough to create a prediction because not all polls are created equal--some are more accurate due to methodology, others due to sample size. Some polls may be from a long time ago, and therefore from a different political landscape and thus less applicable to the current political landscape. A good model should account for all of these factors in the data. A large part of Nate Silver's process is adjusting and weighting the polls for the election to account for these factors.
+
+He first collects poll data and weights each poll based on its recency, sample size, and a rating that he creates for the pollster who conducted the poll, based on the pollster's historical accuracy in predicting elections. This way, more recent polls are given more weight, as are polls with larger sample sizes. 
+
+He then adjusts the poll results so that they are comparable. For example, a certain pollster may have a liberal tendency, and on average give 2 percentage points more to the Democrat than other polls. This pollster's polls would then be adjusted 2 points toward the Republican party. This "house effects" difference is one of three factors Nate Silver considers when adjusting the poll results. The other two are whether the poll sampled from likely voters or registered voters and the overall political mood at the time the poll was taken.
+
+After completing these two steps, I used the adjusted, weighted polling average to create a prediction for the outcome in each state. Due to time constraints, I did not get to include each state's political partisanship,  the nation's economy, or other factors such as each candidate's partisan index in my prediction, and I was not able to quantify the uncertainty associated with the polls. This heavily affects the interpretation of my results, compared to Nate Silver's projections, because although I have provided an estimate of the eleciton's outcome, I cannot say how good that estimate is.
+
+To replicate Nate Silver's results, I used his dataset of pollster ratings, found at https://github.com/fivethirtyeight/data/tree/master/pollster-ratings, and a CSV file of general election polls from 2012 found on _____. 
+
+#Weighted Polling Average
+##Recency
+Polls are weighted according to how recent they are, using an exponential decay function $exp{-\lambda t}$, where t is the number of days since the poll was conducted, and $\lambda$ is chosen so that the half-life of the poll is $14 + 0.2*\text{daysfrom}$, where $\text{daysfrom}$ is the number of days between the current day and the election. The result is that, for example, a poll from two weeks ago is penalized more the closer the date is to the election.
+
+##Sample size
+Polls are weighted by $sqrt{Sample Size/600}$, where 600 is the most common poll sample size. The effect is polls with smaller sample sizes than normal are penalized more, while polls with larger sample sizes are not considered to benefit as much. WORDING
+
+##Pollster rating
+Polls are weighted according to how well the pollster has performed in the past. "How well" the pollster has performed is calculated by taking the average of errors under the pollster's control. [2]
+
+There are three sources of error in a poll: sampling error, temporal error, and methodology errors (what he calls "pollster-induced error", or PIE). Temporal error is incorporated into the model as uncertainty while creating the forecast for the election, based on information available today. Furthermore, the polls he based the ratings on were all taken within two weeks of the election date, and so temporal error can be considered negligible. Approximating sampling error, using the formula $80 * n^{-0.5}$, then allows us to calculate PIE for any poll. 
+
+The PIE of all other polls in the same contest, by a different pollster, are then averaged together to get an "iterated average error" (IAE). For simplicity, I compared the PIE for each poll to all other polls in the same contest, regardless of pollster. The IAE is then subtracted from the PIE to get an idea of how accurate this poll is, compared to the average (called the "+/- rating). A negative +/- rating means the pollster's error is on average lower than other pollsters. 
+
+To turn the +/- rating into a weight for each pollster, the +/- rating is first averaged over all polls conducted by the pollster, "regressed to the mean", then added to the average pollster PIE to get a sense of the absolute value of the error. For simplicity's sake, I did not regress the +/- rating to the mean.
+
+[effective sample sizes]
+
+
+#Adjustments to Poll results
+##Registered Voters adjustment
+Polls are typically either registered voter polls, meaning they sample from all registered voters, or likely voter polls. Likely voter polls tend to be more accurate and, on average, lean 2.7 percentage points more in favor of Republicans than registered voter polls. The results for all registered voter polls are then adjusted 2.7 percentage points towards Republicans.
+
+##Trendline adjustment
+In the time between the day a poll was taken and the election date, it is very likely that the political landscape will change (such as one candidate performing extremely well at a debate, thus shifting public opinion towards him). The trendline adjustment seeks to account for that by 
+
+##House effects adjustment
+Pollsters may have a tendency to produce polls that favor one party over the other, called "house effects." In Nate Silver's model, the "house effect" of a pollster is defined as how much the pollster favors a party, compared to other pollsters (not compared to the election result). 
+
+The house effects of the pollsters are determined using a linear regression. The model is $TAdjusted_i = \beta_0 + \beta_1*State_i + \beta_2*Pollster_i + \epsilon_i, \epsilon~N(0,\sigma^2)$, where TAdjusted is the poll's results, adjusted as described previously, and 
+
+
+#Prediction
+I took the average of each poll's results for each state, weighted and adjusted as described above. If the average was in favor of Obama, I added the electoral votes for that state to a running total that I creatively named predicted.votes. 
+
+Two states, Maine and Nebraska, split their electoral votes for each party based on their congressional districts. Due to a lack of data, I simply turned the average poll result into a ratio, then multiplied the ratio by the number of electoral votes for the state, to get the number of votes for each candidate.
+
+Polls for Washington D.C. were not included in my dataset, surprisingly, so I used the results from national polls instead, with the idea that they represent the average result, to determine where the electoral votes for D.C. would go.
+
+
+
+
+http://fivethirtyeight.com/features/how-fivethirtyeight-calculates-pollster-ratings/
+[1] http://fivethirtyeight.com/features/how-the-fivethirtyeight-senate-forecast-model-works/
+[2] http://fivethirtyeight.com/features/pollster-ratings-v30/
+
 ```{r}
 ############################
 #Read in data
@@ -30,7 +72,7 @@ a 600-voter poll from a firm with an average pollster rating gets a weight of 1.
 library(stringr)
 library(ggplot2)
 
-today = as.Date("2012/10/14")
+today = as.Date("2012/10/25")
 as.numeric.factor <- function(x) {as.numeric(levels(x))[x]}
 
 #Dataset and description of data can be found at
@@ -133,7 +175,7 @@ for (i in 1:length(polls$PIE)){
   race = polls$race
   others = polls[polls$race == race,]
   polls$IAE[i] = mean(others$PIE)
-  polls$plus.min= polls$PIE[i] - avg
+  polls$plus.min= polls$PIE[i] - polls$IAE[i]
 } 
 
 #pollsters
@@ -217,19 +259,6 @@ s[51] = "USA"
 state.ids = data.frame(State = s, ID = seq(from=1, to=51))
 
 
-aaarg = lapply(statepollsters$StatePollsters, function(x){
-  bl = which(polldata$StatePollster == x)
-  if (length(bl) == 1) {
-    print(bl)
-    bl
-  }
-})
-
-
-
-
-aaarg = cbind(aaarg)
-
 s = rep(NA, length(polldata$State))
 s = state.ids[which(state.ids[,1] == polldata$State),2]
 
@@ -258,14 +287,15 @@ a + stat_smooth(formula = polldata$Spread ~ polldata$State*polldata$Poll + polld
 ##House effects adjustment
 #################
 
-#remove polls with oly one poll per state 
+#remove polls with only one poll per state 
+library(reshape2)
 s = state.abb
 s[51] = "USA"
 
 df = melt(polldata[c(1,8)], id=c("Poll", "State"))
 df$count = 1
 
-library(reshape2)
+count.states = dcast(polldata, State + Poll ~., length)
 
 count.polls = dcast(polldata, Poll  ~., length)
 singleton.idx = which(count.polls$. == 1) #states with polls conducted by only one pollsters
@@ -275,7 +305,8 @@ a.idx = sapply(a, function(x){
   which(polldata$Poll == x)
 })
 
-housefx.fit = lm(TAdjusted ~ State*Poll, data=polldata[-a.idx,])
+housefx.fit = lm(TAdjusted ~ State + Poll, data=polldata[-a.idx,])
+#housefx.fit = lm(TAdjusted ~ State*Poll, data=polldata)
 
 library(car)
 vif(housefx.fit)
@@ -309,13 +340,18 @@ qqline(res)
 
 
 X = model.matrix(fit)
+n = nrow(polldata)
 p = rankMatrix(X)
 p = p[1]
 
-beta = fit$coefficients[2]
+
 se = sqrt(var(res)*solve(t(X) %*% X))
-beta + 0.02617 * qt(0.975, 48)
-beta - 0.02617 * qt(0.975, 48)
+buffers = 2*se * qt(0.95, n - p)
+
+#use coefficients of housefx as housefx
+#depending on sign of housefx:
+#   - neg housefx: add buffer, subtract the sum from TAdjusted
+#   - pos housefx: subtract buffer, subtract the sum from TAdjusted (I think)
 
 
 
@@ -324,33 +360,36 @@ beta - 0.02617 * qt(0.975, 48)
 ################
 
 #http://fivethirtyeight.com/features/how-the-fivethirtyeight-senate-forecast-model-works/#fn-13
+#multiply final adjusted spread by all weights and then average over each state
+#in Maine and Nebraska, average over congressional district?
 
-
-
-
-
-
-
-census2000 = read.csv("census_data_2000.csv")
-head(census2000)
-
-census.demo = read.csv("census_demographics.csv")
-head(census.demo) #same data, different numbers
 
 elect.votes = read.csv("electoral_votes.csv")
+elect.votes$State = as.character(elect.votes$State)
+for (i in 1:51){
+  idx= which(state.name == elect.votes$State[i])
+  if (length(idx) != 0){elect.votes$State[i] = state.abb[idx]}
+  else {elect.votes$State[i] = "DC"}
+}
 head(elect.votes) #number of votes for each state
 
-gallup.elect = read.csv("gallup_electorate.csv")
-head(gallup.elect) #percent of democrats, republicans per state
+predicted.votes = data.frame(State = elect.votes$State, votes = 0)
 
-obama_indiv_state = read.csv("obama_indiv_state.csv")
-head(obama_indiv_state) #no idea what this is
 
-part_voting = read.csv("partisan_voting.csv")
-head(part_voting)
-
-wsj.forecast = read.csv("wsj_forecast.csv", header=TRUE, sep="\t")
-head(wsj.forecast) ##formatting is wonky
-
+for (i in 1:51){
+  if (elect.votes[i] == 'DC') {}
+  else {
+    statedata = polldata[polldata$State == elect.votes[i],]
+    spread = statedata$TAdjusted #CHANGE TO HFX ADJUSTED
+    pop.vote = mean(spread * statedata$Sampleweight * statedata$recency * statedata$ESS)
+    if (elect.votes[i] == 'MN' | elect.votes[i] == 'NE'){
+      #based on coefficients for MN, NE in housefx.fit, determine if red or blue state
+      predicted.votes$votes[i] = round(pop.vote * elect.votes$votes[i])
+    }
+    else {
+      predicted.votes$votes[i] = ifelse(pop.vote > 0, elect.votes$Votes[i], 0)
+    }
+  }
+}
 
 ```
