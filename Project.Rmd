@@ -113,9 +113,7 @@ timedif = as.numeric(difftime(today, polldata$Date))
 polldata$recency = exp(-recencyrate * timedif)
 
 
-#Reason-Rupe/PSRAI = Princeton...
-#RCP Average = real clear politics average
-#
+#Weighting by poll rating
 polldata$rating = NA
 for (i in 1:length(poll.ratings$Polls)){
   pollster = poll.ratings$Pollster[i]
@@ -125,6 +123,46 @@ for (i in 1:length(poll.ratings$Polls)){
 }
 
 polldata$Sample[which(is.na(polldata$Sample))] = 600 #538 policy
+
+
+polls$sample.error = 80 * polls$samplesize^-0.5
+polls$PIE = polls$error - polls$sample.error
+polls$IAE = NA 
+polls$plus.min = NA
+for (i in 1:length(polls$PIE)){
+  race = polls$race
+  others = polls[polls$race == race,]
+  polls$IAE[i] = mean(others$PIE)
+  polls$plus.min= polls$PIE[i] - avg
+} 
+
+#pollsters
+se = sd(polls$IAE)/sqrt(length(polls$IAE)) 
+
+#http://fivethirtyeight.com/features/pollster-ratings-v30/
+#regress to mean...
+#add average PIE to Pollsters (1.49)
+#this is basically comparison to methodologically perfect poll
+
+
+#individual polls
+#effective sample size
+#how many respondents would a methodologically perfect have to include for it to have an expected error of 4.46 points?
+#effective sample size = 6400 * total expected error^-2
+
+#weight is ratio w/ poll of 600 respondents by pollsters of average quality (1.49 PIE)
+#the average poll has effective size 283
+#then weighting is effective sample size/283
+
+
+#statepollsters
+#going backwards in time
+#calculate cumulative effective sample size (most recent, then most recent + second most, etc)
+#difference b/w CESS is the marginal and treated as actual sample size
+
+#Weighting by sample weight
+polldata$Sampleweight = sqrt(polldata$Sample/600)
+#http://fivethirtyeight.com/features/polls-now-weighted-by-sample-size/
 
 
 ##########################
@@ -173,52 +211,24 @@ polldata$TAdjusted = polldata$TAdjustment + polldata$Spread
 
 
 
-fit = lm(TAdjusted ~ Poll + State, data=polldata)
-res = fit$residuals
-
-vif(fit)
-
-crPlots(fit) 
-
-library(car)
-outs = outlierTest(fit)
-outs = which(abs(res) > 4.087220 )
-plot(fit$fitted.values ~ r.star)
-r.star = rstudent(fit)
-qqnorm(r.star)
-qqline(r.star)
-
-out.idx = which(abs(r.star) > 4.074962)
-fit2 = lm(TAdjusted ~ Poll + State, data=polldata[-out.idx,])
-res = fit2$residuals
-r.star = rstudent(fit2)
-vif(fit2)
-
-crPlots(fit2) 
-
-outlierTest(fit2)
-plot(fit2$fitted.values ~ r.star)
-
-
-qqnorm(res)
-qqline(res)
-
-
-X = model.matrix(fit)
-p = rankMatrix(X)
-p = p[1]
-
-beta = fit$coefficients[2]
-se = sqrt(var(res)*solve(t(X) %*% X))
-beta + 0.02617 * qt(0.975, 48)
-beta - 0.02617 * qt(0.975, 48)
 
 s = state.abb
 s[51] = "USA"
 state.ids = data.frame(State = s, ID = seq(from=1, to=51))
 
 
+aaarg = lapply(statepollsters$StatePollsters, function(x){
+  bl = which(polldata$StatePollster == x)
+  if (length(bl) == 1) {
+    print(bl)
+    bl
+  }
+})
 
+
+
+
+aaarg = cbind(aaarg)
 
 s = rep(NA, length(polldata$State))
 s = state.ids[which(state.ids[,1] == polldata$State),2]
@@ -248,7 +258,64 @@ a + stat_smooth(formula = polldata$Spread ~ polldata$State*polldata$Poll + polld
 ##House effects adjustment
 #################
 
-housefx.fit = lm(Spread ~ State*Poll, data=polldata)
+#remove polls with oly one poll per state 
+s = state.abb
+s[51] = "USA"
+
+df = melt(polldata[c(1,8)], id=c("Poll", "State"))
+df$count = 1
+
+library(reshape2)
+
+count.polls = dcast(polldata, Poll  ~., length)
+singleton.idx = which(count.polls$. == 1) #states with polls conducted by only one pollsters
+a = count.polls$Poll[singleton.idx]
+
+a.idx = sapply(a, function(x){
+  which(polldata$Poll == x)
+})
+
+housefx.fit = lm(TAdjusted ~ State*Poll, data=polldata[-a.idx,])
+
+library(car)
+vif(housefx.fit)
+res = housefx.fit$residuals
+
+crPlots(housefx.fit) 
+
+outlierTest(housefx.fit)
+outs = which(abs(res) > 4.087220 )
+plot(fit$fitted.values ~ r.star)
+r.star = rstudent(housefx.fit)
+qqnorm(res)
+qqline(res)
+
+out.idx = which(abs(r.star) > 4.074962)
+
+#removing outliers
+housefx.fit2 = lm(TAdjusted ~ Poll + State, data=polldata[-out.idx,])
+res = housefx.fit2$residuals
+r.star = rstudent(housefx.fit2)
+vif(housefx.fit2)
+
+crPlots(housefx.fit2) 
+
+outlierTest(housefx.fit2)
+plot(housefx.fit2$fitted.values ~ r.star)
+
+
+qqnorm(res)
+qqline(res)
+
+
+X = model.matrix(fit)
+p = rankMatrix(X)
+p = p[1]
+
+beta = fit$coefficients[2]
+se = sqrt(var(res)*solve(t(X) %*% X))
+beta + 0.02617 * qt(0.975, 48)
+beta - 0.02617 * qt(0.975, 48)
 
 
 
@@ -256,10 +323,6 @@ housefx.fit = lm(Spread ~ State*Poll, data=polldata)
 ##2012 predictions
 ################
 
-vote2012 = as.Date("2012/11/1") 
-currentdate2012 = as.Date("2012/8/15")
-daystil = difftime(vote2012, currentdate2012, unit='days')
-recency.rate = log(2)/(14 + 0.2 * as.numeric(daystil))
 #http://fivethirtyeight.com/features/how-the-fivethirtyeight-senate-forecast-model-works/#fn-13
 
 
