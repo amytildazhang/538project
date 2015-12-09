@@ -82,7 +82,7 @@ library(stringr)
 library(ggplot2)
 
 today = as.Date("2012/10/31")
-as.numeric.factor <- function(x) {as.numeric(levels(x))[x]}
+as.numeric.factor = function(x) {as.numeric(levels(x))[x]}
 
 
 
@@ -391,40 +391,63 @@ for (i in 1:length(polldata$Poll)){
 
 elect.votes = read.csv("electoral_votes.csv")
 elect.votes$State = as.character(elect.votes$State)
+elect.votes$StateAbb = NA
 for (i in 1:51){
   idx= which(state.name == elect.votes$State[i])
-  if (length(idx) != 0){elect.votes$State[i] = state.abb[idx]}
-  else {elect.votes$State[i] = "DC"}
+  if (length(idx) != 0){elect.votes$StateAbb[i] = state.abb[idx]}
+  else {elect.votes$StateAbb[i] = "DC"}
 }
 head(elect.votes) #number of votes for each state
 
-predicted.votes = data.frame(State = elect.votes$State, votes = 0)
-
+predicted.votes = data.frame(State = elect.votes$StateAbb, Votes = 0, region=tolower(elect.votes$State))
+head(predicted.votes)
 
 for (i in 1:51){
   print(paste(i, elect.votes$State[i]))
-  if (elect.votes$State[i] == 'DC') {
+  if (elect.votes$StateAbb[i] == 'DC') {
     print("is DC")
     nationaldata = polldata[polldata$State == 'USA',]
     spread = nationaldata$HXAdjusted
     pop.vote = mean(spread * nationaldata$Sampleweight * nationaldata$recency * nationaldata$rating)
-
+    predicted.votes$Votes[i] = ifelse(pop.vote > 0, elect.votes$Votes[i], 0)
+    
   }
   else {
-    statedata = polldata[polldata$State == elect.votes$State[i],]
-    spread = statedata$HXAdjusted #CHANGE TO HFX ADJUSTED
-    print(paste("spread", spread))
+    statedata = polldata[polldata$State == elect.votes$StateAbb[i],]
+    spread = statedata$HXAdjusted 
+    print(spread)
     pop.vote = mean(spread * statedata$Sampleweight * statedata$recency * statedata$rating)
-    print(paste("pop vote", pop.vote))
-    if (elect.votes$State[i] == 'MN' | elect.votes$State[i] == 'NE'){
+    print(pop.vote)
+    if (elect.votes$StateAbb[i] == 'MN' | elect.votes$StateAbb[i] == 'NE'){
       print("is MN or NE")
-      predicted.votes$votes[i] = round(pop.vote * elect.votes$Votes[i])
+      obama.perc = pop.vote + 50
+      predicted.votes$Votes[i] = round(obama.perc/100 * elect.votes$Votes[i])
     }
     else {
       print("is not MN, NE, DC")
-      predicted.votes$votes[i] = ifelse(pop.vote > 0, elect.votes$Votes[i], 0)
+      predicted.votes$Votes[i] = ifelse(pop.vote > 0, elect.votes$Votes[i], 0)
     }
   }
 }
 
+predicted.votes
+
+library(maps)
+library(ggplot2)
+
+
+all_states = map_data("state")
+predicted.votes$Obama = predicted.votes$Votes > 0
+Total = merge(all_states, predicted.votes, by="region")
+head(Total)
+Total = Total[Total$region!="district of columbia",]
+
+
+
+p = ggplot()
+p = p + geom_polygon(data=Total, aes(x=long, y=lat, group = group, fill=Total$Obama),colour="blue"
+      ) + scale_fill_continuous(low = "thistle2", high = "darkred", guide="colorbar")
+P1 = p + theme_bw()  + labs(fill = "Black to White Incarceration Rates \n Weighted by Relative Population" 
+                            ,title = "State Incarceration Rates by Race, 2010", x="", y="")
+P1 + scale_y_continuous(breaks=c()) + scale_x_continuous(breaks=c()) + theme(panel.border =  element_blank())
 ```
