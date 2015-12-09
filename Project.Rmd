@@ -5,7 +5,7 @@ date: "November 24, 2015"
 output: pdf_document
 ---
 
-Nate Silver made waves in the 2008 election when he correctly forecasted the outcomes of 49 out of 50 of the states using statistics [intro stuff here]. I attempted to replicate his predictions for the 2012 election, using the methodology described on his blog [1]. 
+Nate Silver made waves in the 2008 election when he correctly forecasted the outcomes of 49 out of 50 of the states using statistics ______. I attempted to replicate his predictions for the 2012 election, using the methodology described on his blog [1]. 
 
 Nate Silver's method is based on the idea that general election polls are related to the outcome of the election, and can be used to create a prediction of the election's result. If we view the election results as a random variable, we can use the polls to define an expected value for the election's outcome, and the uncertainty associated with the polls as the variance. 
 
@@ -35,7 +35,7 @@ The PIE of all other polls in the same contest, by a different pollster, are the
 
 To turn the +/- rating into a weight for each pollster, the +/- rating is first averaged over all polls conducted by the pollster, "regressed to the mean", then added to the average pollster PIE to get a sense of the absolute value of the error. For simplicity's sake, I did not regress the +/- rating to the mean.
 
-[effective sample sizes]
+______
 
 
 #Adjustments to Poll results
@@ -43,12 +43,20 @@ To turn the +/- rating into a weight for each pollster, the +/- rating is first 
 Polls are typically either registered voter polls, meaning they sample from all registered voters, or likely voter polls. Likely voter polls tend to be more accurate and, on average, lean 2.7 percentage points more in favor of Republicans than registered voter polls. The results for all registered voter polls are then adjusted 2.7 percentage points towards Republicans.
 
 ##Trendline adjustment
-In the time between the day a poll was taken and the election date, it is very likely that the political landscape will change (such as one candidate performing extremely well at a debate, thus shifting public opinion towards him). The trendline adjustment seeks to account for that by 
+In the time between the day a poll was taken and the election date, it is very likely that the political landscape will change (such as one candidate performing extremely well at a debate, thus shifting public opinion towards him). Older polls, therefore, are less relevant today because they come from a different political landscape. The trendline adjustment seeks to account for that.
+
+The polls are split into groups based on the state they were conducted in (national polls are considered part of the "USA" state) and their pollster. A LOESS regression is conducted on each pollster-state subgroup, with the polls' results as the response, and the week as the predictor. The week is defined starting from the current date--the 7 days before today are week 1, the preceding 7 are week 2, and so on. 
+
+This is analagous to a linear regression with model $Result_i =  beta_0 + \beta_1*Pollster_i*State_i + \beta_2*Week_i + \epsilon_i, \epsilon~N(0,\sigma^2)$. 
+
+Some pollster-state subgroups had very little data, and for those subgroups with under 10 data points, I fit a linear regression to the data instead, with model For pollster-state subgroups that had less than 10 polls, I fit a linear regression with model $Result_i =  beta_0 + \beta_1*Week_i + \epsilon_i, \epsilon~N(0,\sigma^2)$.
+
+The result is a regression that represents the average results of a pollster within a state, over time. We use the ______  
 
 ##House effects adjustment
 Pollsters may have a tendency to produce polls that favor one party over the other, called "house effects." In Nate Silver's model, the "house effect" of a pollster is defined as how much the pollster favors a party, compared to other pollsters (not compared to the election result). 
 
-The house effects of the pollsters are determined using a linear regression. The model is $TAdjusted_i = \beta_0 + \beta_1*State_i + \beta_2*Pollster_i + \epsilon_i, \epsilon~N(0,\sigma^2)$, where TAdjusted is the poll's results, adjusted as described previously, and 
+The house effects of the pollsters are determined using a linear regression. The model is $TAdjusted_i = \beta_0 + \beta_1*State_i + \beta_2*Pollster_i + \epsilon_i, \epsilon~N(0,\sigma^2)$, where TAdjusted is the poll's results, adjusted as described previously, and ______
 
 
 #Prediction
@@ -58,6 +66,7 @@ Two states, Maine and Nebraska, split their electoral votes for each party based
 
 Polls for Washington D.C. were not included in my dataset, surprisingly, so I used the results from national polls instead, with the idea that they represent the average result, to determine where the electoral votes for D.C. would go.
 
+______
 
 
 
@@ -72,15 +81,9 @@ http://fivethirtyeight.com/features/how-fivethirtyeight-calculates-pollster-rati
 library(stringr)
 library(ggplot2)
 
-today = as.Date("2012/10/25")
+today = as.Date("2012/10/31")
 as.numeric.factor <- function(x) {as.numeric(levels(x))[x]}
 
-#Dataset and description of data can be found at
-#https://github.com/fivethirtyeight/data/tree/master/pollster-ratings
-polls = read.csv("https://raw.githubusercontent.com/fivethirtyeight/data/master/pollster-ratings/raw-polls.tsv", header=TRUE, sep="\t")
-polls = polls[grep(pattern = ".*Pres.*", x=polls$race),] 
-polls$polldate = as.Date(polls$polldate, format='%m/%d/%Y')
-polls$electiondate = as.Date(polls$electiondate, format='%m/%d/%Y')
 
 
 poll.ratings =  read.csv("https://raw.githubusercontent.com/fivethirtyeight/data/master/pollster-ratings/pollster-ratings.tsv", header=TRUE, sep="\t")
@@ -167,34 +170,59 @@ for (i in 1:length(poll.ratings$Polls)){
 polldata$Sample[which(is.na(polldata$Sample))] = 600 #538 policy
 
 
+#Dataset and description of data can be found at
+#https://github.com/fivethirtyeight/data/tree/master/pollster-ratings
+polls = read.csv("https://raw.githubusercontent.com/fivethirtyeight/data/master/pollster-ratings/raw-polls.tsv", header=TRUE, sep="\t")
+polls = polls[grep(pattern = ".*Pres.*", x=polls$race),] #select only polls for presidential elections
+polls$polldate = as.Date(polls$polldate, format='%m/%d/%Y')
+polls$electiondate = as.Date(polls$electiondate, format='%m/%d/%Y')
+
+###################
+#This was not included in the final predictions because  turns out that 
+#the historical polling data I was using did not include all of the pollsters
+#in the 2012 election. (I ended up using 538's pollster ratings on GitHub). 
+#But I spent some time on it so I wanted to include it in the code to hand in.
+##
+
 polls$sample.error = 80 * polls$samplesize^-0.5
 polls$PIE = polls$error - polls$sample.error
 polls$IAE = NA 
-polls$plus.min = NA
-for (i in 1:length(polls$PIE)){
-  race = polls$race
+polls$plus.min = NA 
+n = length(polls$PIE)
+for (i in 1:n){
+  race = polls$race[i]
   others = polls[polls$race == race,]
-  polls$IAE[i] = mean(others$PIE)
-  polls$plus.min= polls$PIE[i] - polls$IAE[i]
+  same = which(others$pollster == polls$pollster[i])
+  others = others[-same,]
+  polls$IAE[i] = ifelse(length(others$pollno != 0), mean(others$PIE), 0)
+  polls$plus.min[i] = polls$PIE[i] - polls$IAE[i]
 } 
 
-#pollsters
+
+
 se = sd(polls$IAE)/sqrt(length(polls$IAE)) 
-
-#http://fivethirtyeight.com/features/pollster-ratings-v30/
-#regress to mean...
-#add average PIE to Pollsters (1.49)
+pollsters = data.frame(pollster = levels(factor(polls$pollster)), PIE=NA, IAE=NA, plus.min = NA)
+for (i in 1:length(pollsters$pollster)){
+  pster = as.character(pollsters$pollster[i])
+  pollsters$PIE[i] = mean(polls$PIE[polls$pollster == pster])
+  pollsters$IAE[i] = mean(polls$IAE[polls$pollster == pster])
+  
+  pollsters$plus.min[i] = mean(polls$plus.min[polls$pollster == pster])
+  
+}
 #this is basically comparison to methodologically perfect poll
+pollsters$plus.min = pollsters$plus.min + 1.49
+
+###################
 
 
-#individual polls
-#effective sample size
-#how many respondents would a methodologically perfect have to include for it to have an expected error of 4.46 points?
-#effective sample size = 6400 * total expected error^-2
-
-#weight is ratio w/ poll of 600 respondents by pollsters of average quality (1.49 PIE)
-#the average poll has effective size 283
-#then weighting is effective sample size/283
+for (i in 1:length(polldata$Poll)) {
+  pster = as.character(polldata$Poll[i])
+  print(paste(i, poll.ratings$Simple.Plus.Minus[poll.ratings$Pollster == pster]))
+  tot.error = poll.ratings$Simple.Plus.Minus[poll.ratings$Pollster == pster] + 1.49 + 80*polldata$Sample[i]^-0.5
+  ESS = 6400 * (tot.error^-2) #effective sample size
+  polldata$rating[i] = ESS/283
+}
 
 
 #statepollsters
@@ -236,52 +264,26 @@ polldata$TAdjustment = NA
 trend.fits = lapply(statepollsters$StatePollsters, function(x){
   data = polldata[polldata$StatePollster == x,]
   fit = NA
-  if (length(data$Poll) < 10){ #apparently changing this to ifelse breaks lapply
-    fit = lm(Spread ~ week, data=data)
+  if (length(data$Poll) < 5) {
+    0
   }
+#  if (length(data$Poll) < 10){ #apparently changing this to ifelse breaks lapply
+#    fit = lm(Spread ~ week, data=data)
+#    predict(fit, newdata=data.frame(week = 0)) - predict(fit, newdata=data)
+#  }
   else {
     fit = loess(Spread ~ week, data=data, span=0.85, model=TRUE, surface='direct')
-  }
     predict(fit, newdata=data.frame(week = 0)) - predict(fit, newdata=data)
+  }
 })
+
 
 for (i in 1:length(statepollsters$StatePollsters)) {
   polldata$TAdjustment[polldata$StatePollster == statepollsters$StatePollsters[i]] = trend.fits[[i]] #apparently doing this inside lapply breaks R
 }
 
 polldata$TAdjusted = polldata$TAdjustment + polldata$Spread
-
-
-
-
-s = state.abb
-s[51] = "USA"
-state.ids = data.frame(State = s, ID = seq(from=1, to=51))
-
-
-s = rep(NA, length(polldata$State))
-s = state.ids[which(state.ids[,1] == polldata$State),2]
-
-polldata$StateID = NA
-for (i in 1:length(polldata$StateID)) {
-  polldata$StateID[i] = state.ids[which(state.ids[,1] == polldata$State[i]),2]
-}
-
-polldata$PollID = NA
-for (i in 1:length(polldata$PollID)) {
-  polldata$PollID[i] = poll.ratings[which(poll.ratings[,2] == polldata$Poll[i]),1]
-}
-
-
-trend.adjustment = loess(Spread ~ factor(StateID)*factor(Poll) + factor(week), data=polldata, span=0.85)
-
-
-plot(polldata$Spread ~ polldata$Week)
-
-
-
-a = ggplot(polldata, aes(x=Week,y=Spread))
-a + stat_smooth(formula = polldata$Spread ~ polldata$State*polldata$Poll + polldata$Week, method="loess")
+max(polldata$TAdjusted)
 
 #################
 ##House effects adjustment
@@ -292,10 +294,10 @@ library(reshape2)
 s = state.abb
 s[51] = "USA"
 
-df = melt(polldata[c(1,8)], id=c("Poll", "State"))
-df$count = 1
+count.states = dcast(polldata, State + Poll ~., length) 
+#WV, TX, SD, OK, MS, MD, HI, LA, KY, IL, HI, AR
+#OK Soonerpoll.com, LA Clarus, AR Hendrix
 
-count.states = dcast(polldata, State + Poll ~., length)
 
 count.polls = dcast(polldata, Poll  ~., length)
 singleton.idx = which(count.polls$. == 1) #states with polls conducted by only one pollsters
@@ -305,8 +307,11 @@ a.idx = sapply(a, function(x){
   which(polldata$Poll == x)
 })
 
-housefx.fit = lm(TAdjusted ~ State + Poll, data=polldata[-a.idx,])
-#housefx.fit = lm(TAdjusted ~ State*Poll, data=polldata)
+ok.idx = which(polldata$State == "OK" )
+la.idx = which(polldata$State == "LA" )
+ar.idx = which(polldata$State == "AR" )
+
+housefx.fit = lm(TAdjusted ~ State + Poll, data=polldata[-c(ok.idx, la.idx, ar.idx),])
 
 library(car)
 vif(housefx.fit)
@@ -314,14 +319,16 @@ res = housefx.fit$residuals
 
 crPlots(housefx.fit) 
 
-outlierTest(housefx.fit)
-outs = which(abs(res) > 4.087220 )
-plot(fit$fitted.values ~ r.star)
-r.star = rstudent(housefx.fit)
+outlierTest(housefx.fit) #744, 748, 746, 743, 745
+plot(housefx.fit$fitted.values ~ res)
+
+cd=cooks.distance(fit)
+plot(cd)
+
+
 qqnorm(res)
 qqline(res)
 
-out.idx = which(abs(r.star) > 4.074962)
 
 #removing outliers
 housefx.fit2 = lm(TAdjusted ~ Poll + State, data=polldata[-out.idx,])
@@ -338,15 +345,33 @@ plot(housefx.fit2$fitted.values ~ r.star)
 qqnorm(res)
 qqline(res)
 
+housefx = summary(housefx.fit)
+hfx = housefx$coefficients[-seq(1,42,1),1]
+se = housefx$coefficients[-seq(1,42,1),2]
 
-X = model.matrix(fit)
-n = nrow(polldata)
+n = nrow(polldata[-c(ok.idx, la.idx, ar.idx),])
 p = rankMatrix(X)
 p = p[1]
 
-
-se = sqrt(var(res)*solve(t(X) %*% X))
 buffers = 2*se * qt(0.95, n - p)
+housefx = data.frame(Poll = names(hfx), HouseEffect = as.numeric(hfx), Buffer = as.numeric(se))
+names = str_split_fixed(housefx$Poll, "Poll", 2)
+housefx$Poll = names[,2]
+
+housefx$Total = ifelse(housefx$HouseEffect < 0, housefx$HouseEffect + housefx$Buffer, housefx$HouseEffect - housefx$Buffer)
+
+polldata$HXAdjusted = polldata$TAdjusted
+for (i in 1:length(polldata$Poll)){
+  pster = as.character(polldata$Poll[i])
+  total.hfx = housefx$Total[housefx$Poll == pster]
+  if (length(total.hfx != 0)) {
+    #length of total.hfx will be 0 if it was a poll conducted by a pollster
+    #who only has polls in one of the states that were taken out
+    polls$HXAdjusted[i] = total.hfx + polls$TAdjusted[i]
+  }
+}
+
+
 
 #use coefficients of housefx as housefx
 #depending on sign of housefx:
@@ -377,16 +402,26 @@ predicted.votes = data.frame(State = elect.votes$State, votes = 0)
 
 
 for (i in 1:51){
-  if (elect.votes[i] == 'DC') {}
+  print(paste(i, elect.votes$State[i]))
+  if (elect.votes$State[i] == 'DC') {
+    print("is DC")
+    nationaldata = polldata[polldata$State == 'USA',]
+    spread = nationaldata$HXAdjusted
+    pop.vote = mean(spread * nationaldata$Sampleweight * nationaldata$recency * nationaldata$rating)
+
+  }
   else {
-    statedata = polldata[polldata$State == elect.votes[i],]
-    spread = statedata$TAdjusted #CHANGE TO HFX ADJUSTED
-    pop.vote = mean(spread * statedata$Sampleweight * statedata$recency * statedata$ESS)
-    if (elect.votes[i] == 'MN' | elect.votes[i] == 'NE'){
-      #based on coefficients for MN, NE in housefx.fit, determine if red or blue state
-      predicted.votes$votes[i] = round(pop.vote * elect.votes$votes[i])
+    statedata = polldata[polldata$State == elect.votes$State[i],]
+    spread = statedata$HXAdjusted #CHANGE TO HFX ADJUSTED
+    print(paste("spread", spread))
+    pop.vote = mean(spread * statedata$Sampleweight * statedata$recency * statedata$rating)
+    print(paste("pop vote", pop.vote))
+    if (elect.votes$State[i] == 'MN' | elect.votes$State[i] == 'NE'){
+      print("is MN or NE")
+      predicted.votes$votes[i] = round(pop.vote * elect.votes$Votes[i])
     }
     else {
+      print("is not MN, NE, DC")
       predicted.votes$votes[i] = ifelse(pop.vote > 0, elect.votes$Votes[i], 0)
     }
   }
