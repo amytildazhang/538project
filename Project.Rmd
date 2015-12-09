@@ -218,7 +218,6 @@ pollsters$plus.min = pollsters$plus.min + 1.49
 
 for (i in 1:length(polldata$Poll)) {
   pster = as.character(polldata$Poll[i])
-  print(paste(i, poll.ratings$Simple.Plus.Minus[poll.ratings$Pollster == pster]))
   tot.error = poll.ratings$Simple.Plus.Minus[poll.ratings$Pollster == pster] + 1.49 + 80*polldata$Sample[i]^-0.5
   ESS = 6400 * (tot.error^-2) #effective sample size
   polldata$rating[i] = ESS/283
@@ -273,7 +272,7 @@ trend.fits = lapply(statepollsters$StatePollsters, function(x){
 #  }
   else {
     fit = loess(Spread ~ week, data=data, span=0.85, model=TRUE, surface='direct')
-    predict(fit, newdata=data.frame(week = 0)) - predict(fit, newdata=data)
+    predict(fit, newdata=data.frame(week = 1)) - predict(fit, newdata=data)
   }
 })
 
@@ -340,7 +339,7 @@ crPlots(housefx.fit2)
 
 outlierTest(housefx.fit2)
 plot(housefx.fit2$fitted.values ~ r.star)
-
+abline(0,0,col="red")
 
 qqnorm(res)
 qqline(res)
@@ -365,9 +364,11 @@ for (i in 1:length(polldata$Poll)){
   pster = as.character(polldata$Poll[i])
   total.hfx = housefx$Total[housefx$Poll == pster]
   if (length(total.hfx != 0)) {
+    if (pster == "Public Policy Polling") {
     #length of total.hfx will be 0 if it was a poll conducted by a pollster
     #who only has polls in one of the states that were taken out
-    polls$HXAdjusted[i] = polls$TAdjusted[i] - total.hfx
+    print(total.hfx)}
+    polldata$HXAdjusted[i] = polldata$TAdjusted[i] - total.hfx
   }
 }
 
@@ -403,9 +404,7 @@ predicted.votes = data.frame(State = elect.votes$StateAbb, Votes = 0, region=tol
 head(predicted.votes)
 
 for (i in 1:51){
-  print(paste(i, elect.votes$State[i]))
   if (elect.votes$StateAbb[i] == 'DC') {
-    print("is DC")
     nationaldata = polldata[polldata$State == 'USA',]
     spread = nationaldata$HXAdjusted
     pop.vote = mean(spread * nationaldata$Sampleweight * nationaldata$recency * nationaldata$rating)
@@ -415,16 +414,12 @@ for (i in 1:51){
   else {
     statedata = polldata[polldata$State == elect.votes$StateAbb[i],]
     spread = statedata$HXAdjusted 
-    print(spread)
     pop.vote = mean(spread * statedata$Sampleweight * statedata$recency * statedata$rating)
-    print(pop.vote)
-    if (elect.votes$StateAbb[i] == 'MN' | elect.votes$StateAbb[i] == 'NE'){
-      print("is MN or NE")
+    if (elect.votes$StateAbb[i] == 'ME' | elect.votes$StateAbb[i] == 'NE'){
       obama.perc = pop.vote + 50
       predicted.votes$Votes[i] = round(obama.perc/100 * elect.votes$Votes[i])
     }
     else {
-      print("is not MN, NE, DC")
       predicted.votes$Votes[i] = ifelse(pop.vote > 0, elect.votes$Votes[i], 0)
     }
   }
@@ -432,9 +427,6 @@ for (i in 1:51){
 
 predicted.votes
 
-library(maps)
-library(ggplot2)
-library(ggmap)
 library(googleVis)
 
 all_states = map_data("state")
@@ -448,39 +440,20 @@ predicted.votes$Obama = ifelse(is.na(predicted.votes$Votes), 2, predicted.votes$
 map = gvisGeoMap(data.frame(state = predicted.votes$region, outcome = predicted.votes$Obama), locationvar='state', numvar='outcome', options=list(region='US',dataMode='regions',colors="['0x3B5295','0x8A2448', '0xFFFFFF']", showLegend = FALSE))
 plot(map)
 
-elect.votes$actual = c(55,0,29,29,20,20,18,16,0,0,14,13,12,11,0,0,0,0,10,#maryland
-10, 10,10,0,9,0,0,0,7,0,7,6,0,0,0,6,0,0,5,0,4,0,2,4,4,0,3,3,0,0,0,3,0)
+elect.votes$actual = c(0,0,0,0,55,9,7,3,3,29,0,4,0,20,0,6,0,0,0,4,10,11,16,10,0,0,0,0,6,4,14,5,29,0,0,18,0,7,20,4,0,0,0,0,0,3,13,12,0,10,0)
+elect.votes$Obama = ifelse(elect.votes$actual > 0, 0, 1)
+elect.votes$Obama = ifelse(is.na(elect.votes$actual), 2, elect.votes$Obama)
 
+actual.map = gvisGeoMap(data.frame(state = elect.votes$State, outcome = elect.votes$Obama), locationvar='state', numvar='outcome', options=list(region='US',dataMode='regions',colors="['0x3B5295','0x8A2448']", showLegend = FALSE))
+plot(actual.map)
 
+predicted.votes$actual = elect.votes$actual
 
+predicted.votes$error = predicted.votes$Votes - predicted.votes$actual != 0
 
+err.idx = which(predicted.votes$error)
+predicted.votes$State[err.idx]
 
-get_map(location='united states', maptype="watercolor")
-
-map('state', fill=TRUE, col=predicted.votes$Obama)
-
-
-p = ggplot()
-p = p + geom_polygon(data=Total, aes(x=long, y=lat, group = group)
-                     ,colour=Total$Obama
-      ) + scale_fill_continuous(low = "thistle2", high = "darkred", guide="colorbar")
-P1 = p + theme_bw()  + labs(fill = "Black to White Incarceration Rates \n Weighted by Relative Population" 
-                            ,title = "State Incarceration Rates by Race, 2010", x="", y="")
-P1 + scale_y_continuous(breaks=c()) + scale_x_continuous(breaks=c()) + theme(panel.border =  element_blank())
-
-
-
-
-library(plotly)
-# give state boundaries a white border
-l = list(color = toRGB("white"), width = 2)
-# specify some map projection/options
-g = list(
-  scope = 'usa',
-  projection = list(type = 'albers usa'),
-  showlakes = TRUE,
-  lakecolor = toRGB('white')
-)
-
-plot_ly(predicted.votes, z = Obama, locations = region, showlegend=FALSE, type = 'choropleth', text = Votes, locationmode = 'USA-states', color = Obama, colors = 'Purples', marker = list(line = l), layout(title = 'Predicted State Results for 2012 Election', geo = g))
+polldata[polldata$State == 'MO',]
+#AZ, ME, MO, NE NH, NC
 ```
