@@ -367,7 +367,7 @@ for (i in 1:length(polldata$Poll)){
   if (length(total.hfx != 0)) {
     #length of total.hfx will be 0 if it was a poll conducted by a pollster
     #who only has polls in one of the states that were taken out
-    polls$HXAdjusted[i] = total.hfx + polls$TAdjusted[i]
+    polls$HXAdjusted[i] = polls$TAdjusted[i] - total.hfx
   }
 }
 
@@ -434,20 +434,53 @@ predicted.votes
 
 library(maps)
 library(ggplot2)
-
+library(ggmap)
+library(googleVis)
 
 all_states = map_data("state")
-predicted.votes$Obama = predicted.votes$Votes > 0
-Total = merge(all_states, predicted.votes, by="region")
-head(Total)
-Total = Total[Total$region!="district of columbia",]
+predicted.votes$Obama = ifelse(predicted.votes$Votes > 0, 0, 1)
+predicted.votes$Obama = ifelse(is.na(predicted.votes$Votes), 2, predicted.votes$Obama)
+#Total = merge(all_states, predicted.votes, by="region")
+#head(Total)
+#Total = Total[Total$region!="district of columbia",]
 
+
+map = gvisGeoMap(data.frame(state = predicted.votes$region, outcome = predicted.votes$Obama), locationvar='state', numvar='outcome', options=list(region='US',dataMode='regions',colors="['0x3B5295','0x8A2448', '0xFFFFFF']", showLegend = FALSE))
+plot(map)
+
+elect.votes$actual = c(55,0,29,29,20,20,18,16,0,0,14,13,12,11,0,0,0,0,10,#maryland
+10, 10,10,0,9,0,0,0,7,0,7,6,0,0,0,6,0,0,5,0,4,0,2,4,4,0,3,3,0,0,0,3,0)
+
+
+
+
+
+get_map(location='united states', maptype="watercolor")
+
+map('state', fill=TRUE, col=predicted.votes$Obama)
 
 
 p = ggplot()
-p = p + geom_polygon(data=Total, aes(x=long, y=lat, group = group, fill=Total$Obama),colour="blue"
+p = p + geom_polygon(data=Total, aes(x=long, y=lat, group = group)
+                     ,colour=Total$Obama
       ) + scale_fill_continuous(low = "thistle2", high = "darkred", guide="colorbar")
 P1 = p + theme_bw()  + labs(fill = "Black to White Incarceration Rates \n Weighted by Relative Population" 
                             ,title = "State Incarceration Rates by Race, 2010", x="", y="")
 P1 + scale_y_continuous(breaks=c()) + scale_x_continuous(breaks=c()) + theme(panel.border =  element_blank())
+
+
+
+
+library(plotly)
+# give state boundaries a white border
+l = list(color = toRGB("white"), width = 2)
+# specify some map projection/options
+g = list(
+  scope = 'usa',
+  projection = list(type = 'albers usa'),
+  showlakes = TRUE,
+  lakecolor = toRGB('white')
+)
+
+plot_ly(predicted.votes, z = Obama, locations = region, showlegend=FALSE, type = 'choropleth', text = Votes, locationmode = 'USA-states', color = Obama, colors = 'Purples', marker = list(line = l), layout(title = 'Predicted State Results for 2012 Election', geo = g))
 ```
