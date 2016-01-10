@@ -1,8 +1,8 @@
 ############################
 #Read in data
 ############################
-library(stringr)
-library(ggplot2)
+require(stringr)
+require(ggplot2)
 
 today = as.Date("2012/11/05")
 as.numeric.factor = function(x) {as.numeric(levels(x))[x]}
@@ -193,7 +193,7 @@ max(polldata$TAdjusted)
 ##House effects adjustment
 #################
 
-library(reshape2)
+require(reshape2)
 s = state.abb
 s[51] = "USA"
 
@@ -208,7 +208,7 @@ ar.idx = which(polldata$State == "AR" )
 housefx.fit = lm(TAdjusted ~ State + Poll, data=polldata[-c(ok.idx, la.idx, ar.idx),])
 
 #511 things
-library(car)
+require(car)
 vif(housefx.fit)
 res = housefx.fit$residuals
 
@@ -328,7 +328,7 @@ for (i in 1:51){
 }
 
 #draw Maps with predicted and actual results
-suppressPackageStartupMessages(library(googleVis))
+suppressPackageStartupMessages(require(googleVis))
 
 all_states = map_data("state")
 ##These values are so the right colors are assigned instead of a gradient
